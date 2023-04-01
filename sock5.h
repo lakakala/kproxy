@@ -1,0 +1,8 @@
+
+enum state {
+
+};
+
+struct SockInitRequest {
+    
+};
