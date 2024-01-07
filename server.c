@@ -184,6 +184,13 @@ void io_thread_event_cb(struct bufferevent *bev, short what, void *ctx) {
     }
 }
 
+void proxy_sock5_read_init_req_cb(struct sock5_init_req *req, void *arg) {
+    struct proxy_client *client = (struct proxy_client *) arg;
+
+
+}
+
+
 void io_thread_add_conn(struct io_thread_context *ctx, evutil_socket_t fd) {
     struct bufferevent *bev = bufferevent_socket_new(ctx->base, fd, BEV_OPT_CLOSE_ON_FREE);
     if (!bev) {
@@ -193,10 +200,10 @@ void io_thread_add_conn(struct io_thread_context *ctx, evutil_socket_t fd) {
 
     struct proxy_client *client = proxy_client_init(ctx->base, bev);
 
-
-    bufferevent_setcb(bev, io_thread_read_cb, io_thread_write_cb,
-                      io_thread_event_cb, (void *) (client));
-    bufferevent_enable(bev, EV_WRITE | EV_READ);
+    sock5_read_init_req(bev, proxy_sock5_read_init_req_cb, client);
+//    bufferevent_setcb(bev, io_thread_read_cb, io_thread_write_cb,
+//                      io_thread_event_cb, (void *) (client));
+//    bufferevent_enable(bev, EV_WRITE | EV_READ);
 }
 
 void proxy_server_listener_cb(struct evconnlistener *listener, evutil_socket_t fd, struct sockaddr *addr, int socklen,

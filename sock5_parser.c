@@ -4,7 +4,8 @@
 #include "sock5.h"
 #include "kmalloc.h"
 #include <string.h>
-
+#include <event2/bufferevent.h>
+#include <event2/event.h>
 
 int write_sock_init(struct evbuffer *buf, uint8_t method) {
     uint8_t ver = SOCK5_VER;
@@ -34,6 +35,84 @@ int write_sock_connect(struct evbuffer *buf) {
     uint16_t port;
     evbuffer_add(buf, &port, 2);
     return 0;
+}
+
+struct sock5_read_init_req_context {
+    int state;
+
+    void *arg;
+    sock5_read_init_req_cb init_req_cb;
+
+    struct sock5_init_req *req;
+};
+
+void sock5_read_init_req_buff_callback(struct bufferevent *bufev, void *arg) {
+    struct sock5_read_init_req_context *ctx = (struct sock5_read_init_req_context *) arg;
+
+    struct evbuffer *buf = bufferevent_get_input(bufev);
+
+    enum state {
+        // init_req
+        sw_init_start = 0,
+        sw_method_body,
+    };
+
+    for (;;) {
+
+        size_t len = evbuffer_get_length(buf);
+        switch (ctx->state) {
+            case sw_init_start: {
+                if (len < 2) {
+                    return;
+                }
+
+                uint8_t version;
+                evbuffer_remove(buf, &version, sizeof(uint8_t));
+
+                if (version != SOCK5_VER) {
+                    return;
+                }
+
+                evbuffer_remove(buf, &ctx->req->method_len, sizeof(uint8_t));
+
+                ctx->req->methods = kmalloc(ctx->req->method_len);
+                ctx->state = sw_method_body;
+                break;
+            }
+            case sw_method_body: {
+
+                if (len < ctx->req->method_len) {
+                    return;
+                }
+
+                evbuffer_remove(buf, ctx->req->methods, ctx->req->method_len);
+
+                ctx->init_req_cb(ctx->req, ctx->arg);
+
+                bufferevent_disable(bufev, EV_READ | EV_WRITE);
+                bufferevent_setcb(bufev, NULL, NULL, NULL, NULL);
+            }
+        }
+    }
+}
+
+
+void sock5_read_init_req(struct bufferevent *bufev, sock5_read_init_req_cb init_req_cb, void *arg) {
+    struct sock5_read_init_req_context *ctx = kmalloc(sizeof(struct sock5_read_init_req_context));
+    ctx->arg = arg;
+    ctx->state = 0;
+    ctx->init_req_cb = init_req_cb;
+
+    bufferevent_setcb(bufev, sock5_read_init_req_buff_callback, NULL, NULL, ctx);
+    bufferevent_enable(bufev, EV_READ);
+}
+
+void sock5_write_init_resp(struct bufferevent *buf, sock5_write_cb write_cb) {
+
+}
+
+void sock5_write_connect_resp(struct bufferevent *buf, sock5_write_cb write_cb) {
+
 }
 
 int parse_sock5(struct sock5_parse_context *ctx, struct evbuffer *buf, void *arg,

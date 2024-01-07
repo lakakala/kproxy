@@ -34,11 +34,21 @@ struct sock5_parse_context {
     uint16_t port;
 };
 
+struct sock5_init_req {
+    uint8_t method_len;
+    uint8_t *methods;
+};
+
+typedef void (*sock5_read_init_req_cb)(struct sock5_init_req *req, void *arg);
+
+typedef int (*sock5_write_cb)(void *arg);
+
 typedef int (*sock5_init_req_cb)(uint8_t method_len, uint8_t *methods, void *arg);
 
 typedef int (*sock5_connect_req_cb)(uint8_t cmd, uint8_t address_type, uint8_t host_len, char *host, uint16_t port,
                                     void *arg);
 
+void sock5_read_init_req(struct bufferevent *bufev, sock5_read_init_req_cb init_req_cb, void *arg);
 
 int parse_sock5(struct sock5_parse_context *ctx, struct evbuffer *buf, void *arg,
                 sock5_init_req_cb init_cb, sock5_connect_req_cb connect_cb);
